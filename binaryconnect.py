@@ -58,11 +58,15 @@ class BC():
         ### To be completed
 
         ### (1) Save the current full precision parameters using the save_params method
-
+        self.save_params()
         
-        1
         ### (2) Binarize the weights in the model, by iterating through the list of target modules and overwrite the values with their binary version
-        
+        for param in self.saved_params:
+            if param >= 0:
+                param = 1
+            else:
+                param = -1
+
     def restore(self):
 
         ### restore the copy from self.saved_params into the model 
