@@ -31,7 +31,7 @@ import binaryconnect
 
 parser = argparse.ArgumentParser(description="PyTorch CIFAR10 Training")
 parser.add_argument("--lr", default=0.03, type=float, help="learning rate")
-# parser.add_argument("--resume", "-r", action="store_true", help="resume from checkpoint")
+parser.add_argument("--resume", "-r", action="store_true", help="resume from checkpoint")
 parser.add_argument("--nepochs", "-n", default=100, type=int, help="number of epochs")
 args = parser.parse_args()
 
@@ -56,10 +56,7 @@ transform_train = transforms.Compose(
 )
 
 transform_test = transforms.Compose(
-    [
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ]
+    [transforms.ToTensor(), transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),]
 )
 
 # Model
@@ -72,12 +69,13 @@ if device == "cuda":
     cudnn.benchmark = True
 
 # Load checkpoint.
-print("==> Resuming from checkpoint..")
-assert os.path.isdir("checkpoint"), "Error: no checkpoint directory found!"
-checkpoint = torch.load("./checkpoint/vgg11_minicifar.pth")
-mymodel.load_state_dict(checkpoint["net"])
-print(f"best_acc = ", checkpoint["acc"])
-print(f"last_epoch = ", checkpoint["epoch"])
+if args.resume:
+    print("==> Resuming from checkpoint..")
+    assert os.path.isdir("checkpoint"), "Error: no checkpoint directory found!"
+    checkpoint = torch.load("./checkpoint/vgg11_minicifar.pth")
+    mymodel.load_state_dict(checkpoint["net"])
+    print(f"best_acc = ", checkpoint["acc"])
+    print(f"last_epoch = ", checkpoint["epoch"])
 
 mymodel.eval()
 
@@ -100,13 +98,15 @@ def train(epoch):
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
 
+        print(model.fc1.weight)
+
         mymodelbc.binarization()
 
-        optimizer.zero_grad()
-        outputs = mymodelbc(inputs)
-        loss = criterion(outputs, targets)
-        loss.backward()
-        optimizer.step()
+        optimizer.zero_grad()  # Set all gradient to 0
+        outputs = mymodelbc(inputs)  # Forward propagation
+        loss = criterion(outputs, targets)  # Calculate loss
+        loss.backward()  # Backward propagation
+        optimizer.step()  # updates the parameters
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -119,6 +119,10 @@ def train(epoch):
             "Loss: %.3f | Acc: %.3f%% (%d/%d)"
             % (train_loss / (batch_idx + 1), 100.0 * correct / total, correct, total),
         )
+
+    for name, param in mymodelbc.named_parameters():
+        if param.requires_grad:
+            print(name, param.data)
 
     mymodelbc.clip()
     loss_train.append(train_loss)
@@ -167,20 +171,22 @@ def test(epoch):
         print(f"accuracy = ", acc)
 
 
-for epoch in range(start_epoch, start_epoch + n_epochs):
-    train(epoch)
-    test(epoch)
-    scheduler.step()
+train(0)
 
-# plt.plot(x, y)
-fig1 = plt.figure()
-plt.plot(range(n_epochs), loss_train)
-plt.plot(range(n_epochs), loss_test)
-plt.legend(["Train", "Validation"], prop={"size": 10})
-plt.title("Loss Function", size=10)
-plt.xlabel("Epoch", size=10)
-plt.ylabel("Loss", size=10)
-plt.ylim(ymax=20, ymin=0)
-plt.show()
-fig1.tight_layout()
-fig1.savefig("TP2_report/figure1.png")
+# for epoch in range(start_epoch, start_epoch + n_epochs):
+#     train(epoch)
+#     test(epoch)
+#     scheduler.step()
+
+# # plt.plot(x, y)
+# fig1 = plt.figure()
+# plt.plot(range(n_epochs), loss_train)
+# plt.plot(range(n_epochs), loss_test)
+# plt.legend(["Train", "Validation"], prop={"size": 10})
+# plt.title("Loss Function", size=10)
+# plt.xlabel("Epoch", size=10)
+# plt.ylabel("Loss", size=10)
+# plt.ylim(ymax=20, ymin=0)
+# plt.show()
+# fig1.tight_layout()
+# fig1.savefig("TP2_report/figure1.png")
