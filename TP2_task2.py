@@ -1,11 +1,3 @@
-from minicifar import minicifar_train, minicifar_test, train_sampler, valid_sampler
-from torch.utils.data.dataloader import DataLoader
-
-trainloader = DataLoader(minicifar_train, batch_size=800, sampler=train_sampler)
-validloader = DataLoader(minicifar_train, batch_size=800, sampler=valid_sampler)
-testloader = DataLoader(minicifar_test, batch_size=800)
-
-
 """Train CIFAR10 with PyTorch."""
 import torch
 import torch.nn as nn
@@ -28,7 +20,6 @@ from utils import progress_bar
 
 import binaryconnect
 
-
 parser = argparse.ArgumentParser(description="PyTorch CIFAR10 Training")
 parser.add_argument("--lr", default=0.03, type=float, help="learning rate")
 parser.add_argument("--resume", "-r", action="store_true", help="resume from checkpoint")
@@ -46,6 +37,14 @@ n_epochs = args.nepochs
 
 # Data
 print("==> Preparing data..")
+
+from minicifar import minicifar_train, minicifar_test, train_sampler, valid_sampler
+from torch.utils.data.dataloader import DataLoader
+
+trainloader = DataLoader(minicifar_train, batch_size=200, sampler=train_sampler)
+validloader = DataLoader(minicifar_train, batch_size=200, sampler=valid_sampler)
+testloader = DataLoader(minicifar_test, batch_size=200)
+
 transform_train = transforms.Compose(
     [
         transforms.RandomCrop(32, padding=4),
@@ -56,7 +55,10 @@ transform_train = transforms.Compose(
 )
 
 transform_test = transforms.Compose(
-    [transforms.ToTensor(), transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),]
+    [
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ]
 )
 
 # Model
@@ -83,7 +85,7 @@ mymodelbc = binaryconnect.BC(mymodel)
 mymodelbc.model = mymodelbc.model.to(device)  # it has to be set for GPU training
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(mymodelbc.parameters(), lr=args.lr, momentum=0.5, weight_decay=5e-4)
+optimizer = optim.SGD(mymodel.parameters(), lr=args.lr, momentum=0.5, weight_decay=5e-4)  # ?should use "mymodel" ?
 # momentum=0.9, weight_decay=5e-4
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
@@ -91,22 +93,24 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 def train(epoch):
     global loss_train
     print("\nEpoch: %d" % epoch)
-    mymodelbc.train()
+    mymodel.train()
     train_loss = 0
     correct = 0
     total = 0
     for batch_idx, (inputs, targets) in enumerate(trainloader):
+        inputs = torch.clamp(inputs, min=-1, max=1)  #! this is clip
         inputs, targets = inputs.to(device), targets.to(device)
 
-        print(model.fc1.weight)
-
+        mymodelbc.save_params()
         mymodelbc.binarization()
 
         optimizer.zero_grad()  # Set all gradient to 0
-        outputs = mymodelbc(inputs)  # Forward propagation
+        outputs = mymodelbc.forward(inputs)  # Forward propagation
         loss = criterion(outputs, targets)  # Calculate loss
         loss.backward()  # Backward propagation
         optimizer.step()  # updates the parameters
+
+        mymodelbc.clip()
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -120,26 +124,22 @@ def train(epoch):
             % (train_loss / (batch_idx + 1), 100.0 * correct / total, correct, total),
         )
 
-    for name, param in mymodelbc.named_parameters():
-        if param.requires_grad:
-            print(name, param.data)
-
-    mymodelbc.clip()
+    # mymodelbc.clip()
     loss_train.append(train_loss)
 
 
 def test(epoch):
     global best_acc
     global loss_test
-    mymodelbc.eval()
+    mymodel.eval()
     test_loss = 0
     correct = 0
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
-            inputs = inputs.binarization()
+            inputs = torch.clamp(inputs, min=-1, max=1)  #! this is clip
             inputs, targets = inputs.to(device), targets.to(device)
-            outputs = mymodelbc(inputs)
+            outputs = mymodelbc.forward(inputs)
             loss = criterion(outputs, targets)
 
             test_loss += loss.item()
@@ -156,37 +156,40 @@ def test(epoch):
 
         acc = 100.0 * correct / total
 
-        print("Saving..")
-        state = {
-            "net": mymodelbc.state_dict(),
-            "acc": acc,
-            "epoch": epoch,
-        }
-        if not os.path.isdir("checkpoint"):
-            os.mkdir("checkpoint")
-        torch.save(state, "./checkpoint/mymodel_half.pth")
-        best_acc = acc
+        mymodelbc.restore()
 
+        # Save checkpoint.
+        if acc > best_acc:
+            print("Saving..")
+            state = {
+                "net": mymodelbc.model.state_dict(),
+                "acc": acc,
+                "epoch": epoch,
+            }
+            if not os.path.isdir("checkpoint"):
+                os.mkdir("checkpoint")
+            torch.save(state, "./checkpoint/ckpt.pth")
+            best_acc = acc
+
+        loss_test.append(test_loss)
         print(f"test_loss = ", test_loss)
         print(f"accuracy = ", acc)
 
 
-train(0)
+for epoch in range(start_epoch, start_epoch + n_epochs):
+    train(epoch)
+    test(epoch)
+    scheduler.step()
 
-# for epoch in range(start_epoch, start_epoch + n_epochs):
-#     train(epoch)
-#     test(epoch)
-#     scheduler.step()
-
-# # plt.plot(x, y)
-# fig1 = plt.figure()
-# plt.plot(range(n_epochs), loss_train)
-# plt.plot(range(n_epochs), loss_test)
-# plt.legend(["Train", "Validation"], prop={"size": 10})
-# plt.title("Loss Function", size=10)
-# plt.xlabel("Epoch", size=10)
-# plt.ylabel("Loss", size=10)
-# plt.ylim(ymax=20, ymin=0)
+# plt.plot(x, y)
+fig1 = plt.figure()
+plt.plot(range(n_epochs), loss_train)
+plt.plot(range(n_epochs), loss_test)
+plt.legend(["Train", "Validation"], prop={"size": 10})
+plt.title("Loss Function", size=10)
+plt.xlabel("Epoch", size=10)
+plt.ylabel("Loss", size=10)
+plt.ylim(ymax=20, ymin=0)
 # plt.show()
-# fig1.tight_layout()
-# fig1.savefig("TP2_report/figure1.png")
+fig1.tight_layout()
+fig1.savefig("TP2_report/figure1.png")

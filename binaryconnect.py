@@ -3,6 +3,7 @@
 
 
 #
+import torch
 import torch.nn as nn
 import numpy
 
@@ -59,10 +60,7 @@ class BC:
 
         ### (2) Binarize the weights in the model, by iterating through the list of target modules and overwrite the values with their binary version
         for param in self.saved_params:
-            if param >= 0:
-                param = 1
-            else:
-                param = -1
+            param = torch.clamp(param, min=-1, max=1)  #! this is clik, not binarize
 
     def restore(self):
 
@@ -78,7 +76,8 @@ class BC:
         ## you can use the nn.Hardtanh function
 
         for param in self.saved_params:
-            param = nn.Hardtanh(param)
+            Htanh = nn.Hardtanh(-1.1)
+            param = Htanh(param)
 
     def forward(self, x):
 
