@@ -37,3 +37,6 @@ The key question we are interested in :
 
 Prepare a presentation for session 4, detailing your methodology and explorations to adress this question. You will have 10 minutes to present, followed by 5 minutes of questions. Good luck !
 
+> Focus on the memory footprint!
+>
+> memory footprint = #param * #bit_per_param
