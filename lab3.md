@@ -11,6 +11,8 @@ For example, when it is applied to weights, applying pruning functions on a modu
 
 `weight_orig` becomes a [torch.nn.parameter.Parameter](https://pytorch.org/docs/stable/generated/torch.nn.parameter.Parameter.html#parameter), and therefore if you train the model, it's this tensor that will be modified. `weight` is a simple attribute that is computed during the forward pass, by applying `weight_mask` on `weight_orig`.
 
+> `weight_mask` is a matrix consist of 1s & 0s.
+
 If you want to permanently apply the pruning and get back to the original structure of your model, you have to apply [`prune.remove`](https://pytorch.org/docs/stable/generated/torch.nn.utils.prune.remove.html#torch-nn-utils-prune-remove) on the module. It will recreate `weight` as a parameter, with the content of `weight_orig` for unpruned weights, and 0s on pruned weights.
 
 The example from [Pruning Tutorial](https://pytorch.org/tutorials/intermediate/pruning_tutorial.html) considers a very simple network. Yours will be more complex. A first step should be to extract the modules to be pruned in order to prun them. Iterate over [torch.nn.Module.modules](https://pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module.modules) to extract the conv and linear layers. Then apply pruning.
