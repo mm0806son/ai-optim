@@ -124,7 +124,7 @@ def test(epoch):
 
 fig1 = plt.figure()
 
-amount_list = np.arange(0.0, 0.11, 0.1)
+amount_list = np.arange(0.0, 1.0, 0.001)
 for amount in amount_list:
     parameters_to_prune = []
     model_pruned = copy.deepcopy(model)
