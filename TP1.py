@@ -1,3 +1,6 @@
+# Data
+print("==> Preparing data..")
+
 from minicifar import minicifar_train, minicifar_test, train_sampler, valid_sampler
 from torch.utils.data.dataloader import DataLoader
 
@@ -5,6 +8,24 @@ trainloader = DataLoader(minicifar_train, batch_size=800, sampler=train_sampler)
 validloader = DataLoader(minicifar_train, batch_size=800, sampler=valid_sampler)
 testloader = DataLoader(minicifar_test, batch_size=800)
 
+import torchvision
+import torchvision.transforms as transforms
+
+transform_train = transforms.Compose(
+    [
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ]
+)
+
+transform_test = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ]
+)
 
 """Train CIFAR10 with PyTorch."""
 import torch
@@ -13,9 +34,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 
-import torchvision
-import torchvision.transforms as transforms
-
 import os
 import argparse
 
@@ -23,7 +41,6 @@ import matplotlib.pyplot as plt
 
 from models import *
 from utils import progress_bar
-
 
 parser = argparse.ArgumentParser(description="PyTorch CIFAR10 Training")
 parser.add_argument("--lr", default=0.03, type=float, help="learning rate")
@@ -40,23 +57,6 @@ loss_test = []
 # n_epochs = 50
 n_epochs = args.nepochs
 
-# Data
-print("==> Preparing data..")
-transform_train = transforms.Compose(
-    [
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ]
-)
-
-transform_test = transforms.Compose(
-    [
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ]
-)
 
 # Model
 print("==> Building model..")
@@ -170,6 +170,6 @@ plt.title("Loss Function", size=10)
 plt.xlabel("Epoch", size=10)
 plt.ylabel("Loss", size=10)
 plt.ylim(ymax=20, ymin=0)
-plt.show()
+# plt.show()
 fig1.tight_layout()
 fig1.savefig("TP1_report/figure1.png")
