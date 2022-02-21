@@ -21,7 +21,7 @@ from utils import progress_bar
 import binaryconnect
 
 parser = argparse.ArgumentParser(description="PyTorch CIFAR10 Training")
-parser.add_argument("--lr", default=0.03, type=float, help="learning rate")
+parser.add_argument("--lr", default=1e-3, type=float, help="learning rate")
 parser.add_argument("--resume", "-r", action="store_true", help="resume from checkpoint")
 parser.add_argument("--nepochs", "-n", default=100, type=int, help="number of epochs")
 args = parser.parse_args()
@@ -79,15 +79,13 @@ if args.resume:
     print(f"best_acc = ", checkpoint["acc"])
     print(f"last_epoch = ", checkpoint["epoch"])
 
-mymodel.eval()
+# mymodel.eval()
 
 mymodelbc = binaryconnect.BC(mymodel)
 mymodelbc.model = mymodelbc.model.to(device)  # it has to be set for GPU training
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(mymodel.parameters(), lr=args.lr, momentum=0.5, weight_decay=5e-4)  # ?should use "mymodel" ?
-# momentum=0.9, weight_decay=5e-4
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+optimizer = optim.Adam(mymodel.parameters(), lr=args.lr, weight_decay=5e-4)
 
 # Training
 def train(epoch):
@@ -98,16 +96,17 @@ def train(epoch):
     correct = 0
     total = 0
     for batch_idx, (inputs, targets) in enumerate(trainloader):
-        inputs = torch.clamp(inputs, min=-1, max=1)  #! this is clip
+        inputs = torch.sign(inputs)
         inputs, targets = inputs.to(device), targets.to(device)
 
-        mymodelbc.save_params()
         mymodelbc.binarization()
 
-        optimizer.zero_grad()  # Set all gradient to 0
+        # optimizer.zero_grad()  # Set all gradient to 0
         outputs = mymodelbc.forward(inputs)  # Forward propagation
         loss = criterion(outputs, targets)  # Calculate loss
+        optimizer.zero_grad()  # Set all gradient to 0
         loss.backward()  # Backward propagation
+        # mymodelbc.restore()
         optimizer.step()  # updates the parameters
 
         mymodelbc.clip()
@@ -137,8 +136,10 @@ def test(epoch):
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
-            inputs = torch.clamp(inputs, min=-1, max=1)  #! this is clip
+            # inputs = torch.sign(inputs) # ! dont binarize
             inputs, targets = inputs.to(device), targets.to(device)
+
+            # mymodelbc.binarization() #! ca fait rien, deja binarise
             outputs = mymodelbc.forward(inputs)
             loss = criterion(outputs, targets)
 
@@ -179,7 +180,6 @@ def test(epoch):
 for epoch in range(start_epoch, start_epoch + n_epochs):
     train(epoch)
     test(epoch)
-    scheduler.step()
 
 # plt.plot(x, y)
 fig1 = plt.figure()
