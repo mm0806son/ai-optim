@@ -11,7 +11,7 @@
 
 n_classes_minicifar = 4
 train_size = 0.8
-R = 1
+R = 5
 
 
 # Download the entire CIFAR10 dataset
