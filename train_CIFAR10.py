@@ -187,7 +187,7 @@ plt.legend(["Train", "Validation"], prop={"size": 10})
 plt.title("Loss Function", size=10)
 plt.xlabel("Epoch", size=10)
 plt.ylabel("Loss", size=10)
-plt.ylim(ymax=30, ymin=0)
+plt.ylim(ymin=0)
 # plt.show()
 fig1.tight_layout()
 path = "train_report/train_CIFAR10.png"
