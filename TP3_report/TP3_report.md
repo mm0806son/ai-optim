@@ -25,6 +25,16 @@ According to the comparison that we mentioned last time, we decided to change ou
 
 <img src="accuracy.png" alt="accuracy" style="zoom:80%;" />
 
+We tried to do a global pruning by using code:
+
+```python
+prune.global_unstructured(
+    parameters_to_prune,
+    pruning_method=prune.L1Unstructured,
+    amount=0.3,
+)
+```
+
 As we had done before, we plotted the impact of pruning rate on the accuracy. We then zoomed in in order to find the best pruning rate.
 
 <img src="CIFAR10_prun.png" alt="CIFAR10_prun" style="zoom:80%;" />
@@ -69,9 +79,9 @@ Part 3 - Problems
 
 The accuracy is reduced after binarization.
 
-![bin_CIFAR10](..\train_report\bin_CIFAR10.png)
+![bin_CIFAR10](bin_CIFAR10.png)
 
-![train_CIFAR10](..\train_report\train_CIFAR10.png)
+![train_CIFAR10](train_CIFAR10.png)
 
 ### 2.For the method：[Learning both Weights and Connections for Efficient Neural Networks](https://arxiv.org/abs/1506.02626)
 
@@ -79,3 +89,8 @@ The accuracy is reduced after binarization.
 
 How to set the weight of subsequent pruning?
 
+
+
+## Summary of presentation
+
+Try to do pruning on each "bunch" of layers, by keeping the structure of network
