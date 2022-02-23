@@ -11,7 +11,7 @@
 
 ### 1. VGG Global Pruning, no retrain 
 
-We started by pruning on a VGG-11 network which is trained by us before. We observed that the accuracy dropped significantly after a certain point. We also saw a quite big occileration at around a pruning rate of 85%.
+We started by pruning on a VGG-11 network which is trained by us before. We observed that the accuracy dropped significantly after a certain point. We also saw a quite big oscillation at around a pruning rate of 85%.
 
 <img src="global_prunning.png" alt="global_prunning_VGG" style="zoom:80%;" />
 
@@ -21,7 +21,7 @@ We tried to zoom in to see this phenomenon.
 
 ### 2. Densenet Global Pruning, no retrain
 
-According to the comparaison that we mentioned last time, we dicided to change our network. Here we use DenseNet.
+According to the comparison that we mentioned last time, we decided to change our network. Here we use DenseNet.
 
 <img src="accuracy.png" alt="accuracy" style="zoom:80%;" />
 
@@ -35,42 +35,47 @@ As we had done before, we plotted the impact of pruning rate on the accuracy. We
 
 <img src="chosen_point_pruning.png" alt="chosen_point_pruning" style="zoom:80%;" />
 
+
+
+
+Part 2 - Reflections
+--
+
+### 1. Retrain after pruning
+
+We tried to use a pruning rate of 0.9235. We saw that the accuracy dropped from 88.875% to 80.625%. We then tried to retrain our model after pruning, and we found a increase of performance on both models before and after pruning.
+
+<img src="result_retrain.png" alt="result_retrain" style="zoom:80%;" />
+
+### 2. Model size
+
 By using pruning, we get a satisfying accuracy with a much smaller network.
 
 Memory footprint:
 
 <img src="result_memory_footprint.png" alt="result_memory_footprint" style="zoom:80%;" />
 
+**Number of non-zero parameters before pruning:** 969281
+969281\*32b=29.6Mb
+**Number of non-zero parameters after pruning:**  74151
+74151\*32b=2372382b=2318Kb=2.26Mb
 
-Part 2 - Reflections
---
-
-1.An accidental attempt
-<img src="result_retrain.png" alt="result_retrain" style="zoom:80%;" />
-
-
-0.9235 - 80.625% -> 82.34
-Number of non-zero parameters:  74151
-74151*32=2372382B=2318Kb=2.26Mb
-
-969281 88.875% -> 91.07%
-969281*32=29.6Mb
-
-2.In theory, the model should be smaller after pruning. But not yet.
-
-
+In theory, the model should be smaller after pruning. But not yet.
 
 Part 3 - Problems
 --
 
-1.binarization
+### 1.binarization
 
-The accuracy is reduced after binarization
-(放跑完后的图)
+The accuracy is reduced after binarization.
 
-2.For the method：[Learning both Weights and Connections for Efficient Neural Networks](https://arxiv.org/abs/1506.02626)
+![bin_CIFAR10](..\train_report\bin_CIFAR10.png)
+
+![train_CIFAR10](..\train_report\train_CIFAR10.png)
+
+### 2.For the method：[Learning both Weights and Connections for Efficient Neural Networks](https://arxiv.org/abs/1506.02626)
 
 <img src="retrain_after_pruning.png" alt="retrain_after_pruning" style="zoom:80%;" />
 
-how to set the weight of subsequent pruning
+How to set the weight of subsequent pruning?
 
