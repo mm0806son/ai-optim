@@ -93,4 +93,8 @@ How to set the weight of subsequent pruning?
 
 ## Summary of presentation
 
-Try to do pruning on each "bunch" of layers, by keeping the structure of network
+- Try to do pruning on each "bunch" of layers, by keeping the structure of network
+
+- Try more epochs and bigger patient on binarized model
+
+- Try more runs with same pruning rate to get a more confident pruning curve
