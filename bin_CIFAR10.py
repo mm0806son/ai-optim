@@ -18,7 +18,7 @@ import argparse
 import matplotlib.pyplot as plt
 
 from models import *
-from utils import progress_bar
+from utils import progress_bar, EarlyStopping
 
 import torchvision
 import torchvision.transforms as transforms
@@ -67,10 +67,13 @@ loss_test = []
 # n_epochs = 50
 n_epochs = args.nepochs
 
-
 # Model
 print("==> Building model..")
 model = densenet_cifar()
+
+# early stop
+print("INFO: Initializing early stopping")
+early_stopping = EarlyStopping(patience=5)
 
 model = model.to(device)
 if device == "cuda":
@@ -81,10 +84,12 @@ if args.resume:
     # Load checkpoint.
     print("==> Resuming from checkpoint..")
     assert os.path.isdir("checkpoint"), "Error: no checkpoint directory found!"
-    checkpoint = torch.load("./checkpoint/bin_CIFAR10.pth")
+    checkpoint = torch.load("./checkpoint/train_CIFAR10.pth")
     model.load_state_dict(checkpoint["model"])
     best_acc = checkpoint["acc"]
     start_epoch = checkpoint["epoch"]
+    early_stopping.best_acc = best_acc
+    print(f"best_acc:", best_acc)
 
 mymodelbc = binaryconnect.BC(model)
 mymodelbc.model = mymodelbc.model.to(device)  # it has to be set for GPU training
@@ -161,8 +166,10 @@ def test(epoch):
 
     mymodelbc.restore() # ? should restore ?
 
-    # Save checkpoint.
     acc = 100.0 * correct / total
+    early_stopping(acc)
+
+    # Save checkpoint.
     if acc > best_acc:
         print("Saving..")
         state = {
@@ -175,22 +182,23 @@ def test(epoch):
         torch.save(state, "./checkpoint/bin_CIFAR10.pth")
         best_acc = acc
 
-
-for epoch in range(start_epoch, start_epoch + n_epochs):
-    train(epoch)
-    test(epoch)
-    # scheduler.step()
-
+epoch_index = 0
+while epoch_index <= n_epochs:
+    train(start_epoch + epoch_index)
+    test(start_epoch + epoch_index)
+    epoch_index += 1
+    if early_stopping.early_stop:
+        break
 
 # plt.plot(x, y)
 fig1 = plt.figure()
-plt.plot(range(n_epochs), loss_train)
-plt.plot(range(n_epochs), loss_test)
+plt.plot(range(epoch_index), loss_train)
+plt.plot(range(epoch_index), loss_test)
 plt.legend(["Train", "Validation"], prop={"size": 10})
 plt.title("Loss Function", size=10)
 plt.xlabel("Epoch", size=10)
 plt.ylabel("Loss", size=10)
-plt.ylim(ymax=30, ymin=0)
+plt.ylim(ymin=0)
 # plt.show()
 fig1.tight_layout()
 path = "train_report/bin_CIFAR10.png"
