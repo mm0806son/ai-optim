@@ -73,7 +73,7 @@ model = densenet_cifar()
 
 # early stop
 print("INFO: Initializing early stopping")
-early_stopping = EarlyStopping(patience=5)
+early_stopping = EarlyStopping(patience=10)
 
 model = model.to(device)
 if device == "cuda":
@@ -116,7 +116,7 @@ def train(epoch):
         loss = criterion(outputs, targets)  # Calculate loss
         optimizer.zero_grad()  # Set all gradient to 0
         loss.backward()  # Backward propagation
-        # mymodelbc.restore()
+        mymodelbc.restore()
         optimizer.step()  # updates the parameters
 
         mymodelbc.clip()
@@ -145,8 +145,9 @@ def test(epoch):
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
+            inputs = torch.sign(inputs)
             inputs, targets = inputs.to(device), targets.to(device)
-            # outputs = model(inputs)
+            mymodelbc.binarization()
             outputs = mymodelbc.forward(inputs)
             loss = criterion(outputs, targets)
 
@@ -164,7 +165,7 @@ def test(epoch):
 
         loss_test.append(test_loss)
 
-    mymodelbc.restore() # ? should restore ?
+    # mymodelbc.restore() # ? should restore ?
 
     acc = 100.0 * correct / total
     early_stopping(acc)

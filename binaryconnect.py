@@ -77,7 +77,9 @@ class BC:
 
         Htanh = nn.Hardtanh(-1, 1)
         for index in range(self.num_of_params):
-            self.target_modules[index].data.copy_(Htanh(self.target_modules[index]))  #! dont clip bias
+            self.target_modules[index].data.copy_(Htanh(self.target_modules[index])) 
+
+
 
     def forward(self, x):
 
