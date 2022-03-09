@@ -1,10 +1,10 @@
-'''
+"""
 @Name           :TP4.py
 @Description    :
 @Time           :2022/02/23 13:50:20
 @Author         :Zijie NING
 @Version        :1.0
-'''
+"""
 
 import torch
 import torch.nn as nn
@@ -55,7 +55,7 @@ classes = ("plane", "car", "bird", "cat", "deer", "dog", "frog", "horse", "ship"
 parser = argparse.ArgumentParser(description="PyTorch CIFAR10 Training")
 parser.add_argument("--lr", default=1e-3, type=float, help="learning rate")
 parser.add_argument("--resume", "-r", action="store_true", help="resume from checkpoint")
-parser.add_argument("--nepochs", "-n", default=100, type=int, help="number of epochs")
+parser.add_argument("--nepochs", "-n", default=300, type=int, help="number of epochs")
 args = parser.parse_args()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -74,7 +74,7 @@ model = densenet_cifar()
 
 # early stop
 print("INFO: Initializing early stopping")
-early_stopping = EarlyStopping(patience=5)
+early_stopping = EarlyStopping(patience=200)
 
 model = model.to(device)
 if device == "cuda":
@@ -116,15 +116,16 @@ def train(epoch):
         x_m, y1, y2 = x_m.to(device), y1.to(device), y2.to(device)
         optimizer.zero_grad()
         out_m = model(x_m)
-        loss = lam*criterion(out_m, y1) + (1-lam)*criterion(out_m, y2)
+        loss = lam * criterion(out_m, y1) + (1 - lam) * criterion(out_m, y2)
         loss.backward()
         optimizer.step()
 
         train_loss += loss.item()
         _, predicted = out_m.max(1)
         total += y.size(0)
-        correct += (lam * predicted.eq(y1.data).cpu().sum().float()
-                    + (1 - lam) * predicted.eq(y2.data).cpu().sum().float())
+        correct += (
+            lam * predicted.eq(y1.data).cpu().sum().float() + (1 - lam) * predicted.eq(y2.data).cpu().sum().float()
+        )
 
         progress_bar(
             batch_idx,
@@ -188,7 +189,7 @@ while epoch_index <= n_epochs:
     epoch_index += 1
     if early_stopping.early_stop:
         break
-    
+
 
 # plt.plot(x, y)
 fig1 = plt.figure()
