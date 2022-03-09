@@ -1,5 +1,5 @@
 """
-@Name           :train_CIFAR10.py
+@Name           :test_CIFAR10.py
 @Description    :
 @Time           :2022/02/16 16:09:05
 @Author         :Zijie NING
@@ -76,7 +76,7 @@ if device == "cuda":
 # Load checkpoint.
 print("==> Resuming from checkpoint..")
 assert os.path.isdir("checkpoint"), "Error: no checkpoint directory found!"
-checkpoint = torch.load("./checkpoint/mobilenet_v2.pt")
+checkpoint = torch.load("./checkpoint/train_CIFAR10_9051.pth")
 # model.load_state_dict(checkpoint["model"])
 for m in model.module():
     model.m.load_state_dict(checkpoint)

@@ -51,9 +51,9 @@ classes = ("plane", "car", "bird", "cat", "deer", "dog", "frog", "horse", "ship"
 
 """Train CIFAR10 with PyTorch."""
 parser = argparse.ArgumentParser(description="PyTorch CIFAR10 Training")
-parser.add_argument("--lr", default=0.01, type=float, help="learning rate")
+parser.add_argument("--lr", default=0.001, type=float, help="learning rate")
 parser.add_argument("--resume", "-r", action="store_true", help="resume from checkpoint")
-parser.add_argument("--nepochs", "-n", default=100, type=int, help="number of epochs")
+parser.add_argument("--nepochs", "-n", default=300, type=int, help="number of epochs")
 args = parser.parse_args()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -72,7 +72,7 @@ model = densenet_cifar()
 
 # early stop
 print("INFO: Initializing early stopping")
-early_stopping = EarlyStopping(patience=20)
+early_stopping = EarlyStopping(patience=200)
 
 model = model.to(device)
 if device == "cuda":
@@ -83,7 +83,7 @@ if args.resume:
     # Load checkpoint.
     print("==> Resuming from checkpoint..")
     assert os.path.isdir("checkpoint"), "Error: no checkpoint directory found!"
-    checkpoint = torch.load("./checkpoint/train_CIFAR10.pth")
+    checkpoint = torch.load("./checkpoint/train_CIFAR10_9051.pth")
     model.load_state_dict(checkpoint["model"])
     best_acc = checkpoint["acc"]
     start_epoch = checkpoint["epoch"]
