@@ -24,6 +24,8 @@ from utils import progress_bar, EarlyStopping, rand_bbox
 import torchvision
 import torchvision.transforms as transforms
 
+from logger import Logger, savefig
+
 # Prepare Cifar10
 print("==> Preparing data..")
 transform_train = transforms.Compose(
@@ -64,8 +66,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
-loss_train = []
-loss_test = []
+train_losses = []
+test_losses = []
 # n_epochs = 50
 n_epochs = args.nepochs
 
@@ -83,6 +85,8 @@ if device == "cuda":
     model = torch.nn.DataParallel(model)
     cudnn.benchmark = True
 
+log_title = "Cifar10 CutMix"
+log_path = "train_report/log.txt"
 if args.resume:
     # Load checkpoint.
     print("==> Resuming from checkpoint..")
@@ -93,6 +97,11 @@ if args.resume:
     start_epoch = checkpoint["epoch"]
     early_stopping.best_acc = best_acc
     print(f"best_acc:", best_acc)
+    logger = Logger(log_path, title=log_title, resume=True)
+else:
+    logger = Logger(log_path, title=log_title)
+    # logger.set_names(["Lr", "Train Loss", "Valid Loss", "Train Acc.", "Valid Acc."])
+    logger.set_names(["Train Acc.", "Valid Acc."])
 
 criterion = nn.CrossEntropyLoss().cuda()
 
@@ -107,7 +116,7 @@ else:
 
 # Training
 def train(epoch):
-    global loss_train
+    global train_losses, train_loss_epoch, train_acc
     print("\nEpoch: %d" % epoch)
     model.train()
     train_loss = 0
@@ -118,7 +127,7 @@ def train(epoch):
         targets = targets.cuda()
 
         r = np.random.rand(1)
-        if args.beta > 0 and r < args.cutmix_prob:  # propability of args.cutmix_prob = 0.5
+        if args.beta > 0 and r < args.cutmix_prob:
             # generate mixed sample
             lam = np.random.beta(args.beta, args.beta)
             rand_index = torch.randperm(inputs.size()[0]).cuda()
@@ -152,13 +161,14 @@ def train(epoch):
             "Loss: %.3f | Acc: %.3f%% (%d/%d)"
             % (train_loss / (batch_idx + 1), 100.0 * correct / total, correct, total),
         )
-
-    loss_train.append(train_loss)
+    train_loss_epoch = train_loss / (batch_idx + 1)
+    train_losses.append(train_loss_epoch)
+    train_acc = 100.0 * correct / total
 
 
 def test(epoch):
     global best_acc
-    global loss_test
+    global test_losses, test_loss_epoch, test_acc
     model.eval()
     test_loss = 0
     correct = 0
@@ -180,25 +190,25 @@ def test(epoch):
                 "Loss: %.3f | Acc: %.3f%% (%d/%d)"
                 % (test_loss / (batch_idx + 1), 100.0 * correct / total, correct, total),
             )
+        test_loss_epoch = test_loss / (batch_idx + 1)
+        test_losses.append(test_loss_epoch)
 
-        loss_test.append(test_loss)
-
-    acc = 100.0 * correct / total
-    early_stopping(acc)
+    test_acc = 100.0 * correct / total
+    early_stopping(test_acc)
 
     # Save checkpoint.
-    if acc > best_acc:
+    if test_acc > best_acc:
         print("Saving..")
         state = {
             "model": model.state_dict(),
-            "acc": acc,
+            "acc": test_acc,
             "epoch": epoch,
-            "loss": test_loss,
+            "loss": test_loss_epoch,
         }
         if not os.path.isdir("checkpoint"):
             os.mkdir("checkpoint")
         torch.save(state, "./checkpoint/cutmix_CIFAR10.pth")
-        best_acc = acc
+        best_acc = test_acc
 
 
 epoch_index = 0
@@ -206,23 +216,36 @@ while epoch_index <= n_epochs:
     train(start_epoch + epoch_index)
     test(start_epoch + epoch_index)
     epoch_index += 1
+    logger.append(
+        [
+            # optimizer.state_dict()["param_groups"][0]["lr"],
+            # train_loss_epoch,
+            # test_loss_epoch,
+            train_acc,
+            test_acc,
+        ]
+    )
     if early_stopping.early_stop:
         break
     if args.optim == "SGD":
         scheduler.step()
 
-# plt.plot(x, y)
-fig1 = plt.figure()
-plt.plot(range(epoch_index), loss_train)
-plt.plot(range(epoch_index), loss_test)
-plt.legend(["Train", "Validation"], prop={"size": 10})
-plt.title("Loss Function", size=10)
-plt.xlabel("Epoch", size=10)
-plt.ylabel("Loss", size=10)
-plt.ylim(ymin=0)
-# plt.show()
-fig1.tight_layout()
-path = "train_report/cutmix_CIFAR10.png"
-if os.path.isfile(path):
-    os.remove(path)
-fig1.savefig(path)
+logger.close()
+logger.plot()
+savefig("train_report/log.png")
+
+# # plt.plot(x, y)
+# fig1 = plt.figure()
+# plt.plot(range(epoch_index), train_losses)
+# plt.plot(range(epoch_index), test_losses)
+# plt.legend(["Train", "Validation"], prop={"size": 10})
+# plt.title("Loss Function", size=10)
+# plt.xlabel("Epoch", size=10)
+# plt.ylabel("Loss", size=10)
+# plt.ylim(ymin=0)
+# # plt.show()
+# fig1.tight_layout()
+# path = "train_report/cutmix_CIFAR10.png"
+# if os.path.isfile(path):
+#     os.remove(path)
+# fig1.savefig(path)
