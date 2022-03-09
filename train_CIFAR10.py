@@ -54,6 +54,7 @@ parser = argparse.ArgumentParser(description="PyTorch CIFAR10 Training")
 parser.add_argument("--lr", default=0.001, type=float, help="learning rate")
 parser.add_argument("--resume", "-r", action="store_true", help="resume from checkpoint")
 parser.add_argument("--nepochs", "-n", default=300, type=int, help="number of epochs")
+parser.add_argument("--optim", default="SGD", type=str, help="optimizer: SGD, Adam")
 args = parser.parse_args()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -92,7 +93,14 @@ if args.resume:
 
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
+
+if args.optim == "SGD":
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-3)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+elif args.optim == "Adam":
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-3)
+else:
+    raise Exception("unknown optimizer: {}".format(args.optim))
 
 # Training
 def train(epoch):
@@ -177,6 +185,8 @@ while epoch_index <= n_epochs:
     epoch_index += 1
     if early_stopping.early_stop:
         break
+    if args.optim == "SGD":
+        scheduler.step()
 
 
 # plt.plot(x, y)
