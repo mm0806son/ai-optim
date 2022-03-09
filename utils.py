@@ -11,6 +11,8 @@ import math
 import torch.nn as nn
 import torch.nn.init as init
 
+import numpy as np
+
 
 def get_mean_and_std(dataset):
     """Compute the mean and std value of dataset."""
@@ -127,11 +129,13 @@ def format_time(seconds):
         f = "0ms"
     return f
 
-class EarlyStopping():
+
+class EarlyStopping:
     """
     Early stopping to stop the training when the loss does not improve after
     certain epochs.
     """
+
     def __init__(self, patience=5, min_delta=0):
         """
         :param patience: how many epochs to wait before stopping when loss is
@@ -156,5 +160,24 @@ class EarlyStopping():
             self.counter += 1
             print(f"INFO: Early stopping counter {self.counter} of {self.patience}")
             if self.counter >= self.patience:
-                print('INFO: Early stopping')
+                print("INFO: Early stopping")
                 self.early_stop = True
+
+
+def rand_bbox(size, lam):
+    W = size[2]
+    H = size[3]
+    cut_rat = np.sqrt(1.0 - lam)
+    cut_w = np.int(W * cut_rat)
+    cut_h = np.int(H * cut_rat)
+
+    # uniform
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+
+    bbx1 = np.clip(cx - cut_w // 2, 0, W)
+    bby1 = np.clip(cy - cut_h // 2, 0, H)
+    bbx2 = np.clip(cx + cut_w // 2, 0, W)
+    bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+    return bbx1, bby1, bbx2, bby2
