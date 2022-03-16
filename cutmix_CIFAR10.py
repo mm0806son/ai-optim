@@ -232,7 +232,7 @@ while epoch_index <= n_epochs:
 
 logger.close()
 logger.plot()
-savefig("train_report/log.png")
+savefig("train_report/log.eps")
 
 # # plt.plot(x, y)
 # fig1 = plt.figure()
