@@ -1,10 +1,12 @@
-"""
-@Name           :cutmix_CIFAR10.py
+'''
+@Name           :distillation_CIFAR10.py
 @Description    :
-@Time           :2022/03/09 10:25:05
+@Time           :2022/03/20 11:51:44
 @Author         :Zijie NING
 @Version        :1.0
-"""
+'''
+
+
 
 import torch
 import torch.nn as nn
@@ -45,7 +47,7 @@ transform_test = transforms.Compose(
 )
 
 trainset = torchvision.datasets.CIFAR10(root="./data", train=True, download=True, transform=transform_train)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=200, shuffle=True, num_workers=2)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=100, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root="./data", train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
@@ -54,11 +56,9 @@ classes = ("plane", "car", "bird", "cat", "deer", "dog", "frog", "horse", "ship"
 
 """Train CIFAR10 with PyTorch."""
 parser = argparse.ArgumentParser(description="PyTorch CIFAR10 Training")
-parser.add_argument("--lr", default=0.001, type=float, help="learning rate")
+parser.add_argument("--lr", default=0.1, type=float, help="learning rate")
 parser.add_argument("--resume", "-r", action="store_true", help="resume from checkpoint")
 parser.add_argument("--nepochs", "-n", default=300, type=int, help="number of epochs")
-parser.add_argument("--beta", default=1.0, type=float, help="hyperparameter beta")
-parser.add_argument("--cutmix_prob", default=1, type=float, help="cutmix probability")
 parser.add_argument("--optim", default="SGD", type=str, help="optimizer: SGD, Adam")
 args = parser.parse_args()
 
@@ -72,26 +72,40 @@ test_losses = []
 n_epochs = args.nepochs
 
 
-# Model
-print("==> Building model..")
-model = densenet_cifar()
+# Model_teacher
+print("==> Building teacher model..")
+model_teacher = densenet_cifar()
+
+model_teacher = model_teacher.to(device)
+if device == "cuda":
+    model_teacher = torch.nn.DataParallel(model_teacher)
+    cudnn.benchmark = True
+
+assert os.path.isdir("checkpoint"), "Error: no checkpoint directory found!"
+checkpoint = torch.load("./checkpoint/cutmix_CIFAR10.pth")
+model_teacher.load_state_dict(checkpoint["model"])
+best_acc_teacher = checkpoint["acc"]
+print(f"Teacher best_acc:", best_acc_teacher)
 
 # early stop
 print("INFO: Initializing early stopping")
 early_stopping = EarlyStopping(patience=200)
 
+# Model_student
+print("==> Building student model..")
+model = densenet_small()
 model = model.to(device)
 if device == "cuda":
     model = torch.nn.DataParallel(model)
     cudnn.benchmark = True
 
-log_title = "Cifar10 CutMix"
-log_path = "train_report/log_cutmix"
+log_title = "Distillation"
+log_path = "train_report/log_distillation"
 if args.resume:
     # Load checkpoint.
     print("==> Resuming from checkpoint..")
     assert os.path.isdir("checkpoint"), "Error: no checkpoint directory found!"
-    checkpoint = torch.load("./checkpoint/cutmix_CIFAR10.pth")
+    checkpoint = torch.load("./checkpoint/distillation_CIFAR10.pth")
     model.load_state_dict(checkpoint["model"])
     best_acc = checkpoint["acc"]
     start_epoch = checkpoint["epoch"]
@@ -103,16 +117,21 @@ else:
     # logger.set_names(["Lr", "Train Loss", "Valid Loss", "Train Acc.", "Valid Acc."])
     logger.set_names(["Train Acc.", "Valid Acc."])
 
-criterion = nn.CrossEntropyLoss().cuda()
+
 
 if args.optim == "SGD":
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-3)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 elif args.optim == "Adam":
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-3)
 else:
     raise Exception("unknown optimizer: {}".format(args.optim))
 
+criterion = nn.CrossEntropyLoss().cuda()
+criterion_KL = nn.KLDivLoss(reduction='batchmean').cuda()
+
+T = 0.9
+temp=30
 
 # Training
 def train(epoch):
@@ -126,34 +145,22 @@ def train(epoch):
         inputs = inputs.cuda()
         targets = targets.cuda()
 
-        r = np.random.rand(1)
-        if args.beta > 0 and r < args.cutmix_prob:
-            # generate mixed sample
-            lam = np.random.beta(args.beta, args.beta)
-            rand_index = torch.randperm(inputs.size()[0]).cuda()
-            target_a = targets
-            target_b = targets[rand_index]
-            bbx1, bby1, bbx2, bby2 = rand_bbox(inputs.size(), lam)
-            inputs[:, :, bbx1:bbx2, bby1:bby2] = inputs[rand_index, :, bbx1:bbx2, bby1:bby2]
-            # adjust lambda to exactly match pixel ratio
-            lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (inputs.size()[-1] * inputs.size()[-2]))
-            # compute output
-            outputs = model(inputs)
-            loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1.0 - lam)
+        output_student = model(inputs)
+        output_teacher = model_teacher(inputs)
 
-        else:
-            # compute output
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-
-        print(f"loss = ", loss)
+        loss_hard = criterion(output_student, targets)
+        # print(f"loss_hard = ", loss_hard)
+        loss_soft = criterion_KL(F.softmax(output_student/temp,dim=1),F.softmax(output_teacher/temp,dim=1))
+        # print(f"loss_soft = ", loss_soft)
+        loss = T*loss_soft + (1-T)*loss_hard
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
+        # print(f"loss", loss.item())
         train_loss += loss.item()
-        _, predicted = outputs.max(1)
+        _, predicted = output_student.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
@@ -209,7 +216,7 @@ def test(epoch):
         }
         if not os.path.isdir("checkpoint"):
             os.mkdir("checkpoint")
-        torch.save(state, "./checkpoint/cutmix_CIFAR10.pth")
+        torch.save(state, "./checkpoint/distillation_CIFAR10.pth")
         best_acc = test_acc
 
 
@@ -233,7 +240,7 @@ while epoch_index <= n_epochs:
         scheduler.step()
 
 logger.close()
-logger.plot()
+# logger.plot()
 savefig(log_path+".eps")
 
 # # plt.plot(x, y)
