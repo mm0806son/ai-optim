@@ -104,6 +104,9 @@ def densenet_small():
 def densenet_tiny():
     return DenseNet(Bottleneck, [6,12,24,16], growth_rate=6)
 
+def densenet_nano():
+    return DenseNet(Bottleneck, [6,12,24,16], growth_rate=4)
+
 def test():
     net = densenet_cifar()
     x = torch.randn(1,3,32,32)
