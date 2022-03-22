@@ -2,3 +2,5 @@ data/*
 modles/*
 sandbox.*
 __pycache__/
+
+*.eps

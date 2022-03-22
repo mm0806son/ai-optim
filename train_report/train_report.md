@@ -23,7 +23,6 @@ For `densenet_tiny`
 Flops: 49598008.0, Params: 129557.0
 Score flops: 0.059444168944812116 Score Params: 0.023189089062590332
 Final score: 0.08263325800740245
-94.210%
 
 For `densenet_cifar`
 Flops: 192701552.0, Params: 500309.0
@@ -46,3 +45,6 @@ def densenet_small():
 lr=0.1, 300epochs, 94.1%
 
 0.0140
+
+pruning rate 19.7%
+final = 0.03375
