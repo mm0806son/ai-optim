@@ -47,4 +47,4 @@ lr=0.1, 300epochs, 94.1%
 0.0140
 
 pruning rate 19.7%
-final = 0.03375
+final = 0.0304
