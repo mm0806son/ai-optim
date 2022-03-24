@@ -6,6 +6,7 @@ from models import *
 import os
 import torch
 import torch.nn as nn
+# import torch.nn.functional as F
 import resnet
 
 # from ..models import
@@ -120,6 +121,8 @@ def profile(model, input_size, custom_ops={}):
             m.register_forward_hook(count_relu)
         elif isinstance(m, (nn.AvgPool2d)):
             m.register_forward_hook(count_avgpool)
+        # elif isinstance(m, (F.avg_pool2d)):
+        #     m.register_forward_hook(count_avgpool)
         elif isinstance(m, nn.Linear):
             m.register_forward_hook(count_linear)
         elif isinstance(m, nn.Sequential):
@@ -152,7 +155,7 @@ def main():
     # ref_flops  = 10490000000
 
     # model = resnet.ResNet18()
-    model = DenseNet121()
+    model = densenet_nano()
     print(model)
     flops, params = profile(model, (1, 3, 32, 32))
     flops, params = flops.item(), params.item()

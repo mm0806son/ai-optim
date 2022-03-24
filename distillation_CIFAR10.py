@@ -1,11 +1,10 @@
-'''
+"""
 @Name           :distillation_CIFAR10.py
 @Description    :
 @Time           :2022/03/20 11:51:44
 @Author         :Zijie NING
 @Version        :1.0
-'''
-
+"""
 
 
 import torch
@@ -13,12 +12,14 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
+import torch.nn.utils.prune as prune
 
 import os
 import argparse
 
 import matplotlib.pyplot as plt
 import numpy as np
+import copy
 
 from models import *
 from utils import progress_bar, EarlyStopping, rand_bbox
@@ -60,7 +61,16 @@ parser.add_argument("--lr", default=0.1, type=float, help="learning rate")
 parser.add_argument("--resume", "-r", action="store_true", help="resume from checkpoint")
 parser.add_argument("--nepochs", "-n", default=300, type=int, help="number of epochs")
 parser.add_argument("--optim", default="SGD", type=str, help="optimizer: SGD, Adam")
+parser.add_argument(
+    "--log_path", "-p", default="train_report/log_distillation", type=str, help="path to save training log"
+)
+parser.add_argument("--log_title", "-t", default="Distillation", type=str, help="title of training log")
+parser.add_argument("--beta", default=1.0, type=float, help="hyperparameter beta")
+parser.add_argument("--cutmix_prob", default=1, type=float, help="cutmix probability")
+parser.add_argument("--model", default="densenet_cifar", type=str, help="choose model")
+parser.add_argument("--prune", default=1.0, type=float, help="prune ratio")
 args = parser.parse_args()
+
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 best_acc = 0  # best test accuracy
@@ -93,34 +103,44 @@ early_stopping = EarlyStopping(patience=200)
 
 # Model_student
 print("==> Building student model..")
-model = densenet_small()
+if args.model == "densenet_cifar":
+    model = densenet_cifar()
+elif args.model == "densenet_small":
+    model = densenet_small()
+elif args.model == "densenet_tiny":
+    model = densenet_tiny()
+elif args.model == "densenet_nano":
+    model = densenet_nano()
+else:
+    raise Exception("unknown model: {}".format(args.model))
+
 model = model.to(device)
 if device == "cuda":
     model = torch.nn.DataParallel(model)
     cudnn.benchmark = True
 
-log_title = "Distillation"
-log_path = "train_report/log_distillation"
+log_title = args.log_title
+log_path = args.log_path
+
 if args.resume:
     # Load checkpoint.
     print("==> Resuming from checkpoint..")
     assert os.path.isdir("checkpoint"), "Error: no checkpoint directory found!"
-    checkpoint = torch.load("./checkpoint/distillation_CIFAR10.pth")
+    checkpoint = torch.load("./checkpoint/distillation_CIFAR10_nano.pth")
     model.load_state_dict(checkpoint["model"])
     best_acc = checkpoint["acc"]
     start_epoch = checkpoint["epoch"]
     early_stopping.best_acc = best_acc
     print(f"best_acc:", best_acc)
-    logger = Logger(log_path+".txt", title=log_title, resume=True)
+    logger = Logger(log_path + ".txt", title=log_title, resume=True)
 else:
-    logger = Logger(log_path+".txt", title=log_title)
+    logger = Logger(log_path + ".txt", title=log_title)
     # logger.set_names(["Lr", "Train Loss", "Valid Loss", "Train Acc.", "Valid Acc."])
     logger.set_names(["Train Acc.", "Valid Acc."])
 
 
-
 if args.optim == "SGD":
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 elif args.optim == "Adam":
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-3)
@@ -128,10 +148,10 @@ else:
     raise Exception("unknown optimizer: {}".format(args.optim))
 
 criterion = nn.CrossEntropyLoss().cuda()
-criterion_KL = nn.KLDivLoss(reduction='batchmean').cuda()
+criterion_KL = nn.KLDivLoss(reduction="batchmean").cuda()
 
 T = 0.9
-temp=30
+temp = 30
 
 # Training
 def train(epoch):
@@ -145,14 +165,33 @@ def train(epoch):
         inputs = inputs.cuda()
         targets = targets.cuda()
 
-        output_student = model(inputs)
-        output_teacher = model_teacher(inputs)
+        r = np.random.rand(1)
+        if args.beta > 0 and r < args.cutmix_prob:
+            # generate mixed sample
+            lam = np.random.beta(args.beta, args.beta)
+            rand_index = torch.randperm(inputs.size()[0]).cuda()
+            target_a = targets
+            target_b = targets[rand_index]
+            bbx1, bby1, bbx2, bby2 = rand_bbox(inputs.size(), lam)
+            inputs[:, :, bbx1:bbx2, bby1:bby2] = inputs[rand_index, :, bbx1:bbx2, bby1:bby2]
+            # adjust lambda to exactly match pixel ratio
+            lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (inputs.size()[-1] * inputs.size()[-2]))
+            # compute output
+            output_student = model(inputs)
+            output_teacher = model_teacher(inputs)
+            loss_hard = criterion(output_student, target_a) * lam + criterion(output_student, target_b) * (1.0 - lam)
+            # print(f"loss_hard = ", loss_hard)
 
-        loss_hard = criterion(output_student, targets)
-        # print(f"loss_hard = ", loss_hard)
-        loss_soft = criterion_KL(F.softmax(output_student/temp,dim=1),F.softmax(output_teacher/temp,dim=1))
+        else:
+            # compute output
+            output_student = model(inputs)
+            output_teacher = model_teacher(inputs)
+            loss_hard = criterion(output_student, targets)
+            # print(f"loss_hard = ", loss_hard)
+
+        loss_soft = criterion_KL(F.softmax(output_student / temp, dim=1), F.softmax(output_teacher / temp, dim=1))
         # print(f"loss_soft = ", loss_soft)
-        loss = T*loss_soft + (1-T)*loss_hard
+        loss = T * loss_soft + (1 - T) * loss_hard
 
         optimizer.zero_grad()
         loss.backward()
@@ -216,13 +255,28 @@ def test(epoch):
         }
         if not os.path.isdir("checkpoint"):
             os.mkdir("checkpoint")
-        torch.save(state, "./checkpoint/distillation_CIFAR10.pth")
+        torch.save(state, "./checkpoint/distillation_CIFAR10_nano.pth")
         best_acc = test_acc
 
 
 epoch_index = 0
-while epoch_index <= n_epochs:
+
+while epoch_index < n_epochs:
     train(start_epoch + epoch_index)
+    if (args.prune > 0 & (epoch_index % 3 == 0)):
+        print("pruning!")
+        parameters_to_prune = []
+        # model_pruned = copy.deepcopy(model)
+        for module in model.modules():
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                parameters_to_prune.append((module, "weight"))
+        prune.global_unstructured(
+            parameters_to_prune,
+            pruning_method=prune.L1Unstructured,
+            amount=args.prune,
+        )
+    # train(start_epoch + epoch_index)
+
     test(start_epoch + epoch_index)
     epoch_index += 1
     logger.append(
@@ -240,8 +294,8 @@ while epoch_index <= n_epochs:
         scheduler.step()
 
 logger.close()
-# logger.plot()
-savefig(log_path+".eps")
+logger.plot()
+savefig(log_path + ".eps")
 
 # # plt.plot(x, y)
 # fig1 = plt.figure()

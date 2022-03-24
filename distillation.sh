@@ -1,2 +1,2 @@
 source /opt/campux/virtualenv/deeplearning-u20/bin/activate
-python distillation_CIFAR10.py --nepochs 15 --lr 0.01 --log_path "train_report/log_distillation_nano" --log_title "Distillation_nano" --model densenet_nano -r --cutmix_prob 1 --prune 0.2
+python distillation_CIFAR10.py --nepochs 50 --lr 0.01 --log_path "train_report/log_distillation_nano" --log_title "Distillation_nano" --model densenet_nano -r --cutmix_prob 0 --prune 0

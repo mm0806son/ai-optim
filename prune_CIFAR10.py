@@ -121,7 +121,7 @@ def test(epoch):
     accu_test.append(acc)
 
 
-amount_list = np.arange(0.0, 1.0, 0.001)
+amount_list = np.arange(0.15, 1.0, 0.001)
 for amount in amount_list:
     parameters_to_prune = []
     model_pruned = copy.deepcopy(model)
@@ -143,16 +143,16 @@ for amount in amount_list:
         if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
             n_zeros += torch.sum(module.weight == 0)
             n_elements += module.weight.nelement()
-            print(
-                f"Sparsity in ",
-                module,
-                ": ",
-                100.0 * float(torch.sum(module.weight == 0)) / float(module.weight.nelement()),
-                " %",
-            )
+            # print(
+            #     f"Sparsity in ",
+            #     module,
+            #     ": ",
+            #     100.0 * float(torch.sum(module.weight == 0)) / float(module.weight.nelement()),
+            #     " %",
+            # )
 
     print(f"Global sparsity: ", 100.0 * float(n_zeros) / float(n_elements))
-    print(f"Number of non-zero parameters: ", int(n_elements) - int(n_zeros))
+    # print(f"Number of non-zero parameters: ", int(n_elements) - int(n_zeros))
     test(0)
 
 fig1 = plt.figure()
@@ -166,7 +166,7 @@ plt.ylim(ymin=0, ymax=100)
 # plt.show()
 fig1.tight_layout()
 # fig1.savefig("TP3_report/figure1.png")
-path = "train_report/prune_nano.png"
+path = "train_report/prune_nano_new.png"
 if os.path.isfile(path):
     os.remove(path)
 fig1.savefig(path)
